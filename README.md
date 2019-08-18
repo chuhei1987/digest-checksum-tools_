@@ -52,7 +52,8 @@ and name for each FILE.
 ```
 # Examples
 ```
-$> md5sum -b file ed044a283dfc248c9fe14e1b4a012617 *file
+$> md5sum -b file 
+ed044a283dfc248c9fe14e1b4a012617 *file
 $>_
 ```
 ```
