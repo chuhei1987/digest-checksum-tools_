@@ -44,5 +44,31 @@ The following five options are useful only when verifying checksums:
       --help            display this help and exit
       --version         output version information and exit
 
-The sums are computed as described in RFC 1321. When checking, the input should be a former output of this program. The default mode is to print a line with checksum, a space, a character indicating input mode ('*' for binary, ' ' for text or where binary is insignificant), and name for each FILE.
+The sums are computed as described in RFC 1321. 
+When checking, the input should be a former output of this program. 
+The default mode is to print a line with checksum, a space, a character 
+indicating input mode ('*' for binary, ' ' for text or where binary is insignificant), 
+and name for each FILE.
+```
+# Examples
+```
+$> md5sum -b file ed044a283dfc248c9fe14e1b4a012617 *file
+$>_
+```
+```
+$> md5sum -t file --tag
+MD5 (file) = ed044a283dfc248c9fe14e1b4a012617
+$>_
+```
+```
+$> md5sum -b file > file.md5
+$> md5sum -c file.md5
+file: OK
+$>_
+```
+```
+$> md5sum -b file > file.md5
+$> cat file.md5 | md5sum -c -
+file: OK
+$>_
 ```
