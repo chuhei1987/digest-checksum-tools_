@@ -271,15 +271,15 @@ void Version()
 	exit(EXIT_SUCCESS);
 }
 
-bool VerifyFile(str& zFileName)
+bool VerifyFile(str& zIn_FileToVerify)
 {
-	if (zFileName == _T("-"))
+	if (zIn_FileNameToVerify == _T("-"))
 		return true;
 
 	HANDLE hFind;
 	WIN32_FIND_DATA a;
 
-	hFind = FindFirstFile(zFileName.c_str(), &a);
+	hFind = FindFirstFile(zIn_FileToVerify.c_str(), &a);
 	if (hFind == INVALID_HANDLE_VALUE)
 		return false;
 
@@ -302,54 +302,53 @@ bool VerifyFile(str& zFileName)
 	return false;
 }
 
-void SplitFileName(str& zFileName, str& zPath, str& zName)
+void SplitFileName(str& zIn_FileNameToSplit, str& zOut_SplitedFilePath, str& zOut_SplitedFileName)
 {
-	size_t len = zFileName.length();
+	size_t len = zIn_FileNameToSplit.length();
 	size_t i = len;
 	while (i != 0)
 	{
-		if (zFileName[i] == '\\')
+		if (zIn_FileNameToSplit[i] == '\\')
 		{
-			zPath = zFileName.substr(i + 1);
-			zName = zFileName.substr(0, i - 1);
+			zOut_SplitedFilePath = zIn_FileNameToSplit.substr(i + 1);
+			zOut_SplitedFileName = zIn_FileNameToSplit.substr(0, i - 1);
 			break;
 		}
 		i--;
 	}
 }
 
-bool ParseFileName(std::vector<str>& files, str& optname)
+bool ParseFileName(std::vector<str>& zOut_ParsedFiles, str& zIn_FileToParse)
 {
-	if (optname == _T("-"))
+	if (zIn_FileToParse == _T("-"))
 	{
-		files.push_back(optname);
+		zOut_ParsedFiles.push_back(zIn_FileToParse);
 		return true;
 	}
 
 	HANDLE hFind;
 	WIN32_FIND_DATA a;
 
-	hFind = FindFirstFile(optname.c_str(), &a);
+	hFind = FindFirstFile(zIn_FileToParse.c_str(), &a);
 	if (INVALID_HANDLE_VALUE == hFind)
 	{
 		error(_T("%s: %s: no such file or directory\n"),
-			g_option._program_name.c_str(), optname.c_str());
+			g_option._program_name.c_str(), zIn_FileToParse.c_str());
 		return false;
 	}
 
 	str zPath(_T("")), zName(_T(""));
 	if (!(a.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 	{
-		SplitFileName(optname, zPath, zName);
-
-		files.push_back(zPath + a.cFileName);
+		SplitFileName(zIn_FileToParse, zPath, zName);
+		zOut_ParsedFiles.push_back(zPath + a.cFileName);
 	}
 	while (FindNextFile(hFind, &a))
 	{
 		if (!(a.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 		{
-			SplitFileName(optname, zPath, zName);
-			files.push_back(zPath + a.cFileName);
+			SplitFileName(zIn_FileToParse, zPath, zName);
+			zOut_ParsedFiles.push_back(zPath + a.cFileName);
 		}
 	}
 	FindClose(hFind);
@@ -357,12 +356,12 @@ bool ParseFileName(std::vector<str>& files, str& optname)
 	return true;
 }
 
-bool HexDigestFile(str& zFileName, str& zDigest, AlgHash alg_id, bool is_binary_mode)
+bool ComputeFileDigest(str& zIn_FileToCompute, str& zOut_Digest, AlgHash alg_id, bool is_binary_mode)
 {
 	bool is_stdin = false;
 
 	HANDLE hFile;
-	if (zFileName == _T("-"))
+	if (zIn_FileToCompute == _T("-"))
 	{
 		is_stdin = true;
 		hFile = GetStdHandle(STD_INPUT_HANDLE);
@@ -370,7 +369,7 @@ bool HexDigestFile(str& zFileName, str& zDigest, AlgHash alg_id, bool is_binary_
 	else
 	{
 		is_stdin = false;
-		hFile = CreateFile(zFileName.c_str(), GENERIC_READ,
+		hFile = CreateFile(zIn_FileToCompute.c_str(), GENERIC_READ,
 			FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
 			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	}
@@ -385,20 +384,20 @@ bool HexDigestFile(str& zFileName, str& zDigest, AlgHash alg_id, bool is_binary_
 	BYTE *bHash = new BYTE[max_hash_data_bytes];
 
 	const size_t max_buffer_size = 1024;//1KB buffer
-	BYTE *pbContent = new BYTE[max_buffer_size];
+	BYTE *pbBuffer = new BYTE[max_buffer_size];
 
 	DWORD nBytesRead;
 	DWORD dwHashLen = 0;
 
 	//create CSP
-	CryptAcquireContext(&hProv, NULL, NULL, /*PROV_RSA_FULL*/PROV_RSA_AES/*use PROV_RSA_AES instead of PROV_RSA_FULL to support SHA2 algorithm*/, CRYPT_VERIFYCONTEXT | CRYPT_MACHINE_KEYSET);
+	CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_AES/*use PROV_RSA_AES instead of PROV_RSA_FULL to support SHA2 algorithms*/, CRYPT_VERIFYCONTEXT | CRYPT_MACHINE_KEYSET);
 	CryptCreateHash(hProv, alg_id, 0, 0, &hHash);
 
-	while (ReadFile(hFile, pbContent, max_buffer_size, &nBytesRead, NULL))
+	while (ReadFile(hFile, pbBuffer, max_buffer_size, &nBytesRead, NULL))
 	{
 		if (nBytesRead == 0) //regular file
 			break;
-		CryptHashData(hHash, pbContent, nBytesRead, 0);
+		CryptHashData(hHash, pbBuffer, nBytesRead, 0);
 
 		if (is_stdin && GetLastError() == ERROR_BROKEN_PIPE) //stdin
 			break;
@@ -406,7 +405,7 @@ bool HexDigestFile(str& zFileName, str& zDigest, AlgHash alg_id, bool is_binary_
 	CloseHandle(hFile);
 
 	CryptGetHashParam(hHash, HP_HASHVAL, NULL, &dwHashLen, 0);  //get dwHashLen
-	CryptGetHashParam(hHash, HP_HASHVAL, bHash, &dwHashLen, 0); //get bHash
+	CryptGetHashParam(hHash, HP_HASHVAL, pbHash, &dwHashLen, 0); //get bHash
 
 	DWORD i, k;
 
@@ -419,16 +418,16 @@ bool HexDigestFile(str& zFileName, str& zDigest, AlgHash alg_id, bool is_binary_
 
 	for (i = 0; i < dwHashLen; i++)
 	{
-		k = bHash[i] & 0xF;
+		k = pbHash[i] & 0xF;
 		cHashStr[2 * i] = HexDigits[k]; //lower nibble
 
-		k = bHash[i] >> 4 & 0xF;
+		k = pbHash[i] >> 4 & 0xF;
 		cHashStr[2 * i + 1] = HexDigits[k]; //upper nibble
 	}
-	zDigest = cHashStr;
+	zOut_Digest = cHashStr;
 
-	delete[] pbContent;
-	delete[] bHash;
+	delete[] pbBuffer;
+	delete[] pbHash;
 	delete[] cHashStr;
 
 	CryptDestroyHash(hHash);
@@ -468,7 +467,7 @@ bool IsHexDigit(TCHAR hexchar)
 	}
 }
 
-bool ParseLine(TCHAR* cLine, str& zDigest, str& zFileName, bool& is_binary, AlgHash& alg_id)
+bool ParseLine(TCHAR* cLine, str& zOut_DigestInLine, str& zOut_FileNameInLine, bool& is_binary, AlgHash& alg_id)
 {
 	size_t len = _tcslen(cLine);
 	if (len < 32)
@@ -617,23 +616,23 @@ bool ParseLine(TCHAR* cLine, str& zDigest, str& zFileName, bool& is_binary, AlgH
 			return false;
 		}
 		size_t k = 0, j = 0;
-		bool end_digest = false;
-		bool start_file_name = false;
+		bool bEndReadDigest = false;
+		bool bStartReadFilename = false;
 		is_binary = false;
 		while (i < len)
 		{
-			if (!end_digest && IsHexDigit(cLine[i]))//read digest data
+			if (!bEndReadDigest && IsHexDigit(cLine[i]))//read digest data
 			{
 				cDigest[k] = cLine[i];
 				k++;
 			}
 			else// read file name
 			{
-				end_digest = true;
-				if (!start_file_name)
+				bEndReadDigest = true;
+				if (!bStartReadFilename)
 				{
 					if (cLine[i] != ' ')
-						start_file_name = true;
+						bStartReadFilename = true;
 				}
 				else if (cLine[i] != '\n')
 				{
@@ -669,8 +668,8 @@ bool ParseLine(TCHAR* cLine, str& zDigest, str& zFileName, bool& is_binary, AlgH
 		}
 	}
 
-	zFileName = cFileName;
-	zDigest = cDigest;
+	zOut_FileNameInLine = cFileName;
+	zOut_DigestInLine = cDigest;
 
 	delete[] cDigest;
 	delete[] cFileName;
@@ -678,58 +677,37 @@ bool ParseLine(TCHAR* cLine, str& zDigest, str& zFileName, bool& is_binary, AlgH
 	return true;
 }
 
-bool DigestFile(str& zFileName)
+bool DigestFile(str& zIn_FileToCompute)
 {
-	str zAlgName;
-	str zDigest;
-	bool status = HexDigestFile(zFileName, zDigest, g_option._digest_alg, g_option._binary);
+	str zDigestComputed;
+	bool status = ComputeFileDigest(zIn_FileToCompute, zDigestComputed, g_option._digest_alg, g_option._binary);
 	if (status)
 	{
 		if (g_option._bsd_tag)
 		{
-			switch (g_option._digest_alg)
-			{
-			case MD5:
-				zAlgName = _T("MD5");
-				break;
-			case SHA1:
-				zAlgName = _T("SHA1");
-				break;
-			case SHA256:
-				zAlgName = _T("SHA256");
-				break;
-			case SHA384:
-				zAlgName = _T("SHA384");
-				break;
-			case SHA512:
-				zAlgName = _T("SHA512");
-				break;
-			default:
-				break;
-			}
-			_tprintf(_T("%s ("), zAlgName.c_str());
+			_tprintf(_T("%s ("), g_option._digest_alg_name.c_str());
 			if (g_option._binary)
 				_puttchar('*');
 			else
 				_puttchar(' ');
-			_tprintf(_T("%s) = %s"), zFileName.c_str(), zDigest.c_str());
+			_tprintf(_T("%s) = %s"), zIn_FileToCompute.c_str(), zDigestComputed.c_str());
 		}
 		else
 		{
-			_tprintf(_T("%s "), zDigest.c_str());
+			_tprintf(_T("%s "), zDigestComputed.c_str());
 			if (g_option._binary)
 				_puttchar('*');
 			else
 				_puttchar(' ');
-			_tprintf(zFileName.c_str());
+			_tprintf(zIn_FileToCompute.c_str());
 		}
 		_puttchar(g_option._delim);
 	}
 	return status;
 }
-bool DigestCheck(str& zFileName)
+bool DigestCheck(str& zIn_FileContainsDigestInfo)
 {
-	str zDigest;
+	str zDigestComputed;
 	DWORD nMisformattedLines = 0;
 	DWORD nImproperlyFormattedLines = 0;
 	DWORD nMismatchedChecksums = 0;
@@ -741,23 +719,22 @@ bool DigestCheck(str& zFileName)
 
 	bool is_binary = false;
 
-	bool is_stdin = (zFileName == _T("-"));
+	bool is_stdin = (zIn_FileContainsDigestInfo == _T("-"));
 
 	FILE* f = NULL;
 
 	if (is_stdin)
 	{
-		//have_read_stdin = true;
-		zFileName = _T("standard input");
+		zIn_FileContainsDigestInfo = _T("standard input");
 		f = stdin;
 	}
 	else
 	{
-		_tfopen_s(&f, zFileName.c_str(), _T("r"));
+		_tfopen_s(&f, zIn_FileContainsDigestInfo.c_str(), _T("r"));
 		if (f == NULL)
 		{
 			error(_T("%s: %s: no such file or directory\n"),
-				g_option._program_name.c_str(), zFileName.c_str());
+				g_option._program_name.c_str(), zIn_FileContainsDigestInfo.c_str());
 			return false;
 		}
 	}
@@ -771,7 +748,7 @@ bool DigestCheck(str& zFileName)
 		++nLine;
 		if (nLine == 0)
 			error(_T("%s: too many checksum lines\n"),
-				zFileName.c_str());
+				zIn_FileContainsDigestInfo.c_str());
 
 		if (NULL == _fgetts(cLine, 1024, f))
 			break;
@@ -790,7 +767,7 @@ bool DigestCheck(str& zFileName)
 			if (g_option._warn)
 			{
 				error(_T("%s: %lu: ill-formatted %s checksum line\n"),
-					zFileName.c_str(), nLine, g_option._digest_alg_name.c_str());
+					zIn_FileContainsDigestInfo.c_str(), nLine, g_option._digest_alg_name.c_str());
 			}
 			++nImproperlyFormattedLines;
 		}
@@ -799,8 +776,8 @@ bool DigestCheck(str& zFileName)
 			bool ok = false;
 
 			bProperlyFormattedLines = true;
-			zDigest = _T("");
-			ok = HexDigestFile(zFileToCheck, zDigest, g_option._digest_alg, is_binary);
+			zDigestComputed = _T(“”);//clear contents
+			ok = ComputeFileDigest(zFileToCheck, zDigestComputed, g_option._digest_alg, is_binary);
 			if (!ok)
 			{
 				++nOpenOrReadFailures;
@@ -811,17 +788,17 @@ bool DigestCheck(str& zFileName)
 			}
 			else
 			{
-				if (zDigest != zDigestInFile)
+				if (zDigestComputed != zDigestInFile)
 					++nMismatchedChecksums;
 				else
 					bMatchedChecksums = true;
 
 				if (!g_option._status_only)
 				{
-					if (zDigest != zDigestInFile)
-						_tprintf(_T("%s: %s\n"), zFileToCheck.c_str(), _T("FAILED"));
+					if (zDigestComputed != zDigestInFile)
+						_tprintf(_T("%s: FAILED\n"), zFileToCheck.c_str());
 					else if (!g_option._quiet)
-						_tprintf(_T("%s: %s\n"), zFileToCheck.c_str(), _T("OK"));
+						_tprintf(_T("%s: OK\n"), zFileToCheck.c_str());
 				}
 			}
 		}
@@ -831,15 +808,14 @@ bool DigestCheck(str& zFileName)
 
 	if (ferror(f))
 	{
-		error(0, 0,
-			_T("%s: read error\n"),
-			zFileName.c_str());
+		error(_T("%s: read error\n"),
+			zIn_FileContainsDigestInfo.c_str());
 		return false;
 	}
 
 	if (!is_stdin && fclose(f) != 0)
 	{
-		error(0, errno, zFileName.c_str());
+		error(zIn_FileContainsDigestInfo.c_str());
 		return false;
 	}
 
@@ -847,7 +823,7 @@ bool DigestCheck(str& zFileName)
 	{
 		//Warn if no tests are found.
 		error(_T("%s: no well-formatted %s checksum lines found\n"),
-			zFileName.c_str(), g_option._digest_alg_name.c_str());
+			zIn_FileContainsDigestInfo.c_str(), g_option._digest_alg_name.c_str());
 	}
 	else
 	{
@@ -867,7 +843,7 @@ bool DigestCheck(str& zFileName)
 
 			if (g_option._ignore_missing && !bMatchedChecksums)
 				error(_T("%s: no file was verified\n"),
-					zFileName.c_str());
+				        zIn_FileContainsDigestInfo.c_str());
 		}
 	}
 
