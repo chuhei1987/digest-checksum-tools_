@@ -273,7 +273,7 @@ void Version()
 
 bool VerifyFile(str& zIn_FileToVerify)
 {
-	if (zIn_FileNameToVerify == _T("-"))
+	if (zIn_FileToVerify == _T("-"))
 		return true;
 
 	HANDLE hFind;
