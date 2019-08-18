@@ -413,7 +413,7 @@ bool HexDigestFile(str& zFileName, str& zDigest, AlgHash alg_id, bool is_binary_
 	//at least 128 + 1('\0') chars because SHA512 algorithm will generate 128 chars
 	const size_t max_hash_str_len = 129;
 	TCHAR *cHashStr = new TCHAR[max_hash_str_len];
-	memset(_tzHash, 0, max_hash_str_len);
+	memset(cHashStr, 0, max_hash_str_len);
 
 	static const TCHAR *HexDigits = _T(“0123456789abcdef”);
 
