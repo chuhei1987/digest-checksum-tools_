@@ -884,7 +884,12 @@ bool DigestCheck(str& zFileName)
 int main(int argc, const TCHAR* argv[])
 {
 	g_option.InitMain(argc, argv);
-
+	if (argc == 1)
+	{
+		error(_T("%s: require argument(s)\n"), g_option._program_name.c_str());
+		g_option.DisposeInvalidOption();
+	}
+	
 	option::definition optdefs[] = {
 		{_T("--binary"), 'b', option::no_argument},
 		{_T("--check"), 'c', option::no_argument},
