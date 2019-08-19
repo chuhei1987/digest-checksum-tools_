@@ -381,7 +381,7 @@ bool ComputeFileDigest(str& zIn_FileToCompute, str& zOut_Digest, AlgHash alg_id,
 
 	//at least 64 bytes since SHA512 has the longest output (512 bits == 64 bytes)
 	const size_t max_hash_data_bytes = 64;
-	BYTE *bHash = new BYTE[max_hash_data_bytes];
+	BYTE *pbHash = new BYTE[max_hash_data_bytes];
 
 	const size_t max_buffer_size = 1024;//1KB buffer
 	BYTE *pbBuffer = new BYTE[max_buffer_size];
@@ -555,16 +555,6 @@ bool ParseLine(TCHAR* cLine, str& zOut_DigestInLine, str& zOut_FileNameInLine, b
 			if (cLine[i] == '(')
 			{
 				i++;
-				if (cLine[i] == '*')
-				{
-					is_binary = true;
-					i++;
-				}
-				else if (cLine[i] == ' ')
-				{
-					is_binary = false;
-					i++;
-				}
 				size_t k = 0;
 				while (cLine[i] != ')' && cLine[i] != '\0') //read file name
 				{
@@ -602,6 +592,7 @@ bool ParseLine(TCHAR* cLine, str& zOut_DigestInLine, str& zOut_FileNameInLine, b
 			delete[] cFileName;
 			return false;
 		}
+		is_binary = false;//--tag does not support --text mode
 	}
 	else // GNU style
 	{
@@ -665,6 +656,12 @@ bool ParseLine(TCHAR* cLine, str& zOut_DigestInLine, str& zOut_FileNameInLine, b
 		default:
 			alg_id = UNKNOWN_ALG;
 			break;
+		}
+		if(alg_id == UNKNOWN_ALG)
+		{
+			delete[] cDigest;
+			delete[] cFileName;
+			return false;
 		}
 	}
 
@@ -771,7 +768,7 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 			bool ok = false;
 
 			bProperlyFormattedLines = true;
-			zDigestComputed = _T(“”);//clear contents
+			zDigestComputed = _T("");//clear contents
 			ok = ComputeFileDigest(zFileToCheck, zDigestComputed, g_option._digest_alg, is_binary);
 			if (!ok)
 			{
