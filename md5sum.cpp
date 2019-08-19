@@ -684,17 +684,12 @@ bool DigestFile(str& zIn_FileToCompute)
 	if (status)
 	{
 		if (g_option._bsd_tag)
-		{
-			_tprintf(_T("%s ("), g_option._digest_alg_name.c_str());
-			if (g_option._binary)
-				_puttchar('*');
-			else
-				_puttchar(' ');
-			_tprintf(_T("%s) = %s"), zIn_FileToCompute.c_str(), zDigestComputed.c_str());
-		}
+			_tprintf(_T("%s (%s) = %s"), g_option._digest_alg_name.c_str(), zIn_FileToCompute.c_str(), zDigestComputed.c_str());
 		else
 		{
-			_tprintf(_T("%s "), zDigestComputed.c_str());
+			_tprintf(zDigestComputed.c_str());
+			_puttchar(' ');
+
 			if (g_option._binary)
 				_puttchar('*');
 			else
@@ -940,6 +935,8 @@ int main(int argc, const TCHAR* argv[])
 		}
 		opt.to_next();
 	}
+
+        g_option.DisposeOptionError();
 
 	int status = EXIT_SUCCESS;
 	std::vector<str>::iterator iter;
