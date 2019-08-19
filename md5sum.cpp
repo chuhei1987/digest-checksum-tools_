@@ -414,7 +414,7 @@ bool ComputeFileDigest(str& zIn_FileToCompute, str& zOut_Digest, AlgHash alg_id,
 	TCHAR *cHashStr = new TCHAR[max_hash_str_len];
 	memset(cHashStr, 0, max_hash_str_len);
 
-	static const TCHAR *HexDigits = _T(“0123456789abcdef”);
+	static const TCHAR *HexDigits = _T("0123456789abcdef");
 
 	for (i = 0; i < dwHashLen; i++)
 	{
@@ -435,36 +435,17 @@ bool ComputeFileDigest(str& zIn_FileToCompute, str& zOut_Digest, AlgHash alg_id,
 
 	return true;
 }
-bool IsHexDigit(TCHAR hexchar)
+bool IsHexDigit(TCHAR c)
 {
-	switch (hexchar)
+	static const TCHAR *s = _T("0123456789abcdefABCDEF");
+	int i = 0;
+	while(s[i] != '\0')
 	{
-	case '0':
-	case '1':
-	case '2':
-	case '3':
-	case '4':
-	case '5':
-	case '6':
-	case '7':
-	case '8':
-	case '9':
-	case 'a':
-	case 'b':
-	case 'c':
-	case 'd':
-	case 'e':
-	case 'f':
-	case 'A':
-	case 'B':
-	case 'C':
-	case 'D':
-	case 'E':
-	case 'F':
-		return true;
-	default:
-		return false;
+		if(c == s[i])
+			return true;
+		i++;
 	}
+	return false;
 }
 
 bool ParseLine(TCHAR* cLine, str& zOut_DigestInLine, str& zOut_FileNameInLine, bool& is_binary, AlgHash& alg_id)
