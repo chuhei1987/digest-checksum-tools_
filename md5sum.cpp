@@ -439,9 +439,9 @@ bool IsHexDigit(TCHAR c)
 {
 	static const TCHAR *s = _T("0123456789abcdefABCDEF");
 	int i = 0;
-	while(s[i] != '\0')
+	while (s[i] != '\0')
 	{
-		if(c == s[i])
+		if (c == s[i])
 			return true;
 		i++;
 	}
@@ -918,21 +918,20 @@ int main(int argc, const TCHAR* argv[])
 
 	int status = EXIT_SUCCESS;
 	std::vector<str>::iterator iter;
-	if (g_option._do_check)
+
+	for (iter = files.begin(); iter != files.end(); iter++)
 	{
-		for (iter = files.begin(); iter != files.end(); iter++)
+		if (g_option._do_check)
 		{
 			if (!DigestCheck(*iter))
 				status = EXIT_FAILURE;
 		}
-	}
-	else
-	{
-		for (iter = files.begin(); iter != files.end(); iter++)
+		else
 		{
 			if (!DigestFile(*iter))
 				status = EXIT_FAILURE;
 		}
 	}
+
 	return status;
 }
