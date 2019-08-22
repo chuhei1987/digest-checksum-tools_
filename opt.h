@@ -97,9 +97,274 @@ int main(int argc, TCHAR* argv[])
 #include <tchar.h>
 #include <vector>
 #include <string>
+#include <sstream>
+#include <iostream>
 #include <algorithm>
 
-typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR> > str;
+class TString : public std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR> >
+{
+private:
+	typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR> > _TStringBase;
+
+public:
+	TString() : _TStringBase(){}
+	TString(const TString& s) : _TStringBase((_TStringBase)s) {}
+	TString(const _TStringBase& s) : _TStringBase(s) {}
+	TString(const TCHAR* s) : _TStringBase(s) {}
+
+	template<class T> TString operator + (T& s)
+	{
+		_TStringBase ss = (_TStringBase) *this;
+		ss += s;
+
+		TString ts(ss);
+		return ts;
+	}
+
+	template<class T> void operator = (T& s)
+	{
+		_TStringBase* this_base = (_TStringBase*)this;
+		*this_base = s;
+	}
+
+	template<class T> void operator += (T& s)
+	{
+		_TStringBase *this_base = (_TStringBase*) this;
+		*this_base += s;
+	}
+
+	template<class T> TString& operator << (T& s)
+	{
+		*this += s;
+		return *this;
+	}
+
+	template<class T> bool operator == (T& s)
+	{
+		_TStringBase* this_base = (_TStringBase*)this;
+		return (*this_base == s);
+	}
+
+	template<class T> bool operator != (T& s)
+	{
+		_TStringBase* this_base = (_TStringBase*)this;
+		return (*this_base != s);
+	}
+
+	TString substr(size_t pos = 0, size_t len = npos) const
+	{
+		TString s(_TStringBase::substr(pos, len));
+		return s;
+	}
+
+	TString& to_lower()
+	{
+		std::transform(begin(), end(), begin(), tolower);
+		return *this;
+	}
+	TString& to_upper()
+	{
+		std::transform(begin(), end(), begin(), toupper);
+		return *this;
+	}
+
+	void format(const TCHAR* fmt, va_list ap)
+	{
+		size_t sz = _vsctprintf(fmt, ap) + 1;
+		TCHAR* buf = new TCHAR[sz];
+		_vsntprintf_s(buf, sz, sz, fmt, ap);
+		*this = buf;
+		delete[] buf;
+	}
+	void format(const TCHAR* fmt, ...)
+	{
+		va_list ap;
+		va_start(ap, fmt);
+		format(fmt, ap);
+		va_end(ap);
+	}
+	template<class T> TString delimiter(T& zDelim)
+	{
+		size_t pos = find(zDelim);
+		TString s = substr(0, pos);
+		return s;
+	}
+	size_t find(const TString& s, const size_t pos = 0)
+	{
+		return _TStringBase::find((_TStringBase)s, pos);
+	}
+	TString& replace_with(const TCHAR *zFrom, const TCHAR *zTo)
+	{
+		TString from = zFrom;
+		TString to = zTo;
+
+		size_t pos;
+		for (pos = 0; pos != npos; pos += to.length())
+		{
+			pos = find(from, pos);
+			if (pos != npos)
+				replace(pos, from.length(), to);
+			else
+				break;
+		}
+		return *this;
+	}
+};
+
+typedef TString str;
+
+class msghndlr
+{
+private:
+	struct msg_t
+	{
+		int priority;
+		bool suppress;
+		str msg;
+		msg_t() : priority(0), suppress(false) {}
+	};
+	std::vector<msg_t> _msgs;
+
+public:
+	msghndlr() {}
+	~msghndlr()
+	{
+		_msgs.clear();
+	}
+
+	msghndlr& operator()(int priority = 0, bool suppress = false)
+	{
+		msg_t msg;
+		msg.priority = priority;
+		msg.suppress = suppress;
+		_msgs.push_back(msg);
+		return *this;
+	}
+
+	template<class T> msghndlr& operator << (T& msg)
+	{
+		size_t i = _msgs.size() - 1;
+		_msgs[i].msg << msg;
+		return *this;
+	}
+
+	size_t count()
+	{
+		return _msgs.size();
+	}
+
+	msghndlr& format(const TCHAR* fmt, ...)
+	{
+		va_list ap;
+		va_start(ap, fmt);
+		size_t i = _msgs.size() - 1;
+		_msgs[i].msg.format(fmt, ap);
+		va_end(ap);
+		return *this;
+	}
+
+	void print()
+	{
+		struct
+		{
+			bool operator()(msg_t& msg1, msg_t& msg2)
+			{
+				return (msg1.priority < msg2.priority);
+			}
+		} _ascending_order;
+
+		std::sort(_msgs.begin(), _msgs.end(), _ascending_order);
+
+		struct
+		{
+			void operator()(msg_t& msg)
+			{
+				if(!msg.suppress)
+					_ftprintf(stdout, _T("%s"), msg.msg.c_str());
+			}
+		} _print_msg;
+
+		std::for_each(_msgs.begin(), _msgs.end(), _print_msg);
+	}
+};
+
+class errhndlr
+{
+private:
+	struct err_t
+	{
+		int err_code;
+		bool suppress;
+		str err_msg;
+		err_t() : err_code(0), suppress(false) {}
+	};
+	std::vector<err_t> _errs;
+public:
+	errhndlr(){}
+	~errhndlr()
+	{
+		_errs.clear();
+	}
+
+	errhndlr& operator()(int errcode = 0, bool suppress = false)
+	{
+		err_t err;
+		err.err_code = errcode;
+		err.suppress = suppress;
+		_errs.push_back(err);
+		return *this;
+	}
+
+	template<class T> errhndlr& operator << (T& errmsg)
+	{
+		size_t i = _errs.size() - 1;
+		_errs[i].err_msg << errmsg;
+		return *this;
+	}
+
+	size_t count()
+	{
+		return _errs.size();
+	}
+
+	bool haserr()
+	{
+		return (count() != 0);
+	}
+	errhndlr& format(const TCHAR* fmt, ...)
+	{
+		va_list ap;
+		va_start(ap, fmt);
+		size_t i = _errs.size() - 1;
+		_errs[i].err_msg.format(fmt, ap);
+		va_end(ap);
+		return *this;
+	}
+
+	void print()
+	{
+		struct
+		{
+			bool operator()(err_t& err1, err_t& err2)
+			{
+				return (err1.err_code < err2.err_code);
+			}
+		} _ascending_order;
+
+		std::sort(_errs.begin(), _errs.end(), _ascending_order);
+		
+		struct
+		{
+			void operator()(err_t& err)
+			{
+				if (!err.suppress)
+					_ftprintf(stderr, _T("%s\n"), err.err_msg.c_str());
+			}
+		} _print_err;
+		
+		std::for_each(_errs.begin(), _errs.end(), _print_err);
+	}
+};
 
 class option
 {
@@ -167,12 +432,12 @@ public:
 private:
 	str _zProgramName; //program name (program name only)
 
-	int _nErrCount; //error count
-
 	int _iOpt; //option index
 	std::vector<definition> _optlist;
 
 	const definition nullopt;
+
+	errhndlr errs;
 
 private:
 	void parse_program_name(const str& optstr)
@@ -205,16 +470,17 @@ private:
 			i--;
 		}
 		//to lower case
-		std::transform(_zProgramName.begin(), _zProgramName.end(), _zProgramName.begin(), ::tolower);
+		_zProgramName.to_lower();
 	};
 
-	bool match_definition_by_optname(const str& optstr, definition& opt, definition optdefs[])
+	bool match_definition_by_optname(str optstr, definition& opt, definition optdefs[])
 	{
 		definition* def;
 		def = optdefs;
+
 		while (*def != nullopt)
 		{
-			if (optstr == def->optname)
+			if (optstr.find(def->optname, 0) == 0)
 			{
 				opt = *def;
 				return true;
@@ -264,7 +530,7 @@ private:
 				{
 					if (i != 1)
 					{
-						err(_T("%s ==> -%c: attempts to take argument <%s> in compressed option format!\n"),
+						errs().format(_T("%s ==> -%c: attempts to take argument <%s> in compressed option format!"),
 							zValues.c_str(), zValues[i], zValues.substr(i + 1).c_str());
 						haserr = true;
 					}
@@ -284,7 +550,7 @@ private:
 			}
 			else
 			{
-				err(_T("%s ==> -%c: unknown option!\n"),
+				errs().format(_T("%s ==> -%c: unknown option!"),
 					zValues.c_str(), zValues[i]);
 				haserr = true;
 			}
@@ -327,7 +593,7 @@ private:
 				}
 				else if (longopt.kind == no_argument)
 				{
-					err(_T("%s ==> %s: cannot take any argument! ==> <%s>: illegal argument\n"),
+					errs().format(_T("%s ==> %s: cannot take any argument! ==> <%s>: illegal argument"),
 						optstr.c_str(), longopt.optname.c_str(), optstr.substr(i + 1).c_str());
 					return false;
 				}
@@ -340,7 +606,7 @@ private:
 			return true;
 		}
 
-		err(_T("%s ==> %s: unknown option!\n"),
+		errs().format(_T("%s ==> %s: unknown option!"),
 			optstr.c_str(), optstr.c_str());
 		return false;
 	};
@@ -352,22 +618,16 @@ private:
 
 	void parse_option_error()
 	{
-		if (_nErrCount) //if has error
+		if (errs.haserr()) //if has error
 		{
 			_optlist.push_back(definition(_T(""), '?', error,
 				_T("some errors happened while parsing option(s)!")));
-		}
-	};
-	void err(const TCHAR* fmt, ...)
-	{
-		if (_nErrCount == 0)
-			_ftprintf(stderr, _T("%s: error(s) in option(s):\n"), _zProgramName.c_str());
 
-		va_list ap;
-		va_start(ap, fmt);
-		_vftprintf(stderr, fmt, ap);
-		va_end(ap);
-		_nErrCount++;
+			errs(-1)
+				.format(_T("%s: %d error(s) happen in option strings!"), 
+					_zProgramName.c_str(), errs.count())
+				.print();
+		}
 	};
 
 	//adjust parsed options' order by kind in following rule:
@@ -387,7 +647,6 @@ private:
 public:
 	option(int argc, const TCHAR* argv[], option::definition optdefs[])
 	{
-		_nErrCount = 0; //initialize error count
 		int i = 0;
 		size_t len = 0;
 		str argstr;
@@ -412,7 +671,7 @@ public:
 						{
 							if (++i >= argc)
 							{
-								err(_T("%s ==> -%c: requires an argument!"),
+								errs().format(_T("%s ==> -%c: requires an argument!"),
 									argstr.c_str(), argstr[len - 1]);
 							}
 							else
@@ -435,7 +694,7 @@ public:
 							{
 								if (++i >= argc)
 								{
-									err(_T("%s ==> %s: requires an argument!"),
+									errs().format(_T("%s ==> %s: requires an argument!"),
 										argstr.c_str(), opt.optname.c_str());
 								}
 								else
@@ -483,7 +742,7 @@ public:
 	bool is_end() { return _iOpt >= (int)_optlist.size(); };
  
 	bool is_error() { return kind() == error; }; //return true if current option ("?") kind is "error"
-	bool has_error() { return _nErrCount > 0; }; //return true if has error
+	bool has_error() { return errs.haserr(); }; //return true if has error
 
 	int value() { return _optlist[_iOpt].value; };
 	int kind() { return _optlist[_iOpt].kind; };

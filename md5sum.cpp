@@ -49,14 +49,8 @@ void USAGE(const TCHAR* fmt, ...)
 	va_end(ap);
 }
 
-
-void error(const TCHAR* msg, ...)
-{
-	va_list ap;
-	va_start(ap, msg);
-	_vftprintf(stderr, msg, ap);
-	va_end(ap);
-}
+msghndlr outs;
+errhndlr errs;
 
 enum AlgHash : ALG_ID
 {
@@ -174,60 +168,70 @@ public:
 	{
 		if (_bsd_tag && !_binary)
 		{
-			error(_T("--tag does not support --text mode\n"));
+			errs() << _T("--tag does not support --text mode");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 		if (_delim != '\n' && _do_check)
 		{
-			error(_T("the --zero option is not supported when verifying checksums\n"));
+			errs() << _T("the --zero option is not supported when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (_bsd_tag && _do_check)
 		{
-			error(_T("the --tag option is meaningless when verifying checksums\n"));
+			errs() << _T("the --tag option is meaningless when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (binary_flag && _do_check)
 		{
-			error(_T("the --binary and --text options are meaningless when verifying checksums\n"));
+			errs() << _T("the --binary and --text options are meaningless when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (_ignore_missing && !_do_check)
 		{
-			error(_T("the --ignore-missing option is meaningful only when verifying checksums\n"));
+			errs() << _T("the --ignore-missing option is meaningful only when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (_status_only && !_do_check)
 		{
-			error(_T("the --status option is meaningful only when verifying checksums\n"));
+			errs() << _T("the --status option is meaningful only when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (_warn && !_do_check)
 		{
-			error(_T("the --warn option is meaningful only when verifying checksums\n"));
+			errs() << _T("the --warn option is meaningful only when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (_quiet && !_do_check)
 		{
-			error(_T("the --quiet option is meaningful only when verifying checksums\n"));
+			errs() << _T("the --quiet option is meaningful only when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 
 		if (_strict & !_do_check)
 		{
-			error(_T("the --strict option is meaningful only when verifying checksums\n"));
+			errs() << _T("the --strict option is meaningful only when verifying checksums");
+			errs.print();
 			Usage(EXIT_FAILURE);
 		}
 	}
 	void DisposeInvalidOption()
 	{
-		error(_T("Try '%s --help' for more information.\n"), _program_name.c_str());
+		errs() << _T("Try '%s --help' for more information."), _program_name.c_str();
+		errs.print();
 		exit(EXIT_FAILURE);
 	}
 } g_option;
@@ -332,7 +336,7 @@ bool ParseFileName(std::vector<str>& zOut_ParsedFiles, str& zIn_FileToParse)
 	hFind = FindFirstFile(zIn_FileToParse.c_str(), &a);
 	if (INVALID_HANDLE_VALUE == hFind)
 	{
-		error(_T("%s: %s: no such file or directory\n"),
+		errs().format(_T("%s: %s: no such file or directory"),
 			g_option._program_name.c_str(), zIn_FileToParse.c_str());
 		return false;
 	}
@@ -415,7 +419,6 @@ bool ComputeFileDigest(str& zIn_FileToCompute, str& zOut_Digest, AlgHash alg_id,
 	memset(cHashStr, 0, max_hash_str_len);
 
 	static const TCHAR *HexDigits = _T("0123456789abcdef");
-
 	for (i = 0; i < dwHashLen; i++)
 	{
 		k = pbHash[i] & 0xF;
@@ -662,19 +665,19 @@ bool DigestFile(str& zIn_FileToCompute)
 	if (status)
 	{
 		if (g_option._bsd_tag)
-			_tprintf(_T("%s (%s) = %s"), g_option._digest_alg_name.c_str(), zIn_FileToCompute.c_str(), zDigestComputed.c_str());
+			outs().format(_T("%s (%s) = %s%c"), 
+				g_option._digest_alg_name.c_str(), 
+				zIn_FileToCompute.c_str(), 
+				zDigestComputed.c_str(), 
+				g_option._delim);
 		else
 		{
-			_tprintf(zDigestComputed.c_str());
-			_puttchar(' ');
-
-			if (g_option._binary)
-				_puttchar('*');
-			else
-				_puttchar(' ');
-			_tprintf(zIn_FileToCompute.c_str());
+			outs().format(_T("%s %c%s%c"),
+				zDigestComputed.c_str(),
+				g_option._binary ? _T('*') : _T(' '),
+				zIn_FileToCompute.c_str(),
+				g_option._delim);
 		}
-		_puttchar(g_option._delim);
 	}
 	return status;
 }
@@ -706,7 +709,7 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 		_tfopen_s(&f, zIn_FileContainsDigestInfo.c_str(), _T("r"));
 		if (f == NULL)
 		{
-			error(_T("%s: %s: no such file or directory\n"),
+			errs().format(_T("%s: %s: no such file or directory"),
 				g_option._program_name.c_str(), zIn_FileContainsDigestInfo.c_str());
 			return false;
 		}
@@ -720,8 +723,9 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 	do {
 		++nLine;
 		if (nLine == 0)
-			error(_T("%s: too many checksum lines\n"),
+			errs(1).format(_T("%s: too many checksum lines"),
 				zIn_FileContainsDigestInfo.c_str());
+			
 
 		if (NULL == _fgetts(cLine, 1024, f))
 			break;
@@ -736,13 +740,10 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 		if (!bParseOk || (bParseOk && (alg != g_option._digest_alg)))
 		{
 			++nMisformattedLines;
-
-			if (g_option._warn)
-			{
-				error(_T("%s: %lu: ill-formatted %s checksum line\n"),
-					zIn_FileContainsDigestInfo.c_str(), nLine, g_option._digest_alg_name.c_str());
-			}
 			++nImproperlyFormattedLines;
+			errs(1, g_option._warn || g_option._status_only).format(_T("%s: %lu: ill-formatted %s checksum line"),
+				zIn_FileContainsDigestInfo.c_str(), nLine, g_option._digest_alg_name.c_str());
+			
 		}
 		else
 		{
@@ -756,7 +757,7 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 				++nOpenOrReadFailures;
 				if (!g_option._status_only && !g_option._ignore_missing)
 				{
-					error(_T("%s: open or read error\n"), zFileToCheck.c_str());
+					errs().format(_T("%s: open or read error"), zFileToCheck.c_str());
 				}
 			}
 			else
@@ -766,13 +767,10 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 				else
 					bMatchedChecksums = true;
 
-				if (!g_option._status_only)
-				{
-					if (zDigestComputed != zDigestInFile)
-						_tprintf(_T("%s: FAILED\n"), zFileToCheck.c_str());
-					else if (!g_option._quiet)
-						_tprintf(_T("%s: OK\n"), zFileToCheck.c_str());
-				}
+				outs(0, g_option._status_only).format(_T("%s: %s%c"),
+					zFileToCheck.c_str(),
+					(zDigestComputed != zDigestInFile) ? _T("FAILED") : ((!g_option._quiet) ? _T("OK") : _T("")),
+					g_option._delim);
 			}
 		}
 	} while (!feof(f) && !ferror(f));
@@ -781,42 +779,38 @@ bool DigestCheck(str& zIn_FileContainsDigestInfo)
 
 	if (ferror(f))
 	{
-		error(_T("%s: read error\n"),
+		errs().format(_T("%s: read error"),
 			zIn_FileContainsDigestInfo.c_str());
 		return false;
 	}
 
 	if (!is_stdin && fclose(f) != 0)
 	{
-		error(zIn_FileContainsDigestInfo.c_str());
+		errs() << zIn_FileContainsDigestInfo;
 		return false;
 	}
 
 	if (!bProperlyFormattedLines)
 	{
 		//Warn if no tests are found.
-		error(_T("%s: no well-formatted %s checksum lines found\n"),
+		errs(1).format(_T("%s: no well-formatted %s checksum lines found"),
 			zIn_FileContainsDigestInfo.c_str(), g_option._digest_alg_name.c_str());
 	}
 	else
 	{
 		if (!g_option._status_only)
 		{
-			if (nMisformattedLines != 0)
-				error(_T("WARNING: %lu: line(s) is ill-formatted\n"),
-					nMisformattedLines);
+			errs(1, (nMisformattedLines == 0)).format(_T("WARNING: %lu: line(s) is ill-formatted"),
+				nMisformattedLines);
 
-			if (nOpenOrReadFailures != 0)
-				error(_T("WARNING: %lu: listed file(s) could not be read\n"),
-					nOpenOrReadFailures);
+			errs(1, (nOpenOrReadFailures == 0)).format(_T("WARNING: %lu: listed file(s) could not be read"),
+				nOpenOrReadFailures);
 
-			if (nMismatchedChecksums != 0)
-				error(_T("WARNING: %lu: computed checksum(s) did NOT match\n"),
-					nMismatchedChecksums);
+			errs(1, (nMismatchedChecksums == 0)).format(_T("WARNING: %lu: computed checksum(s) did NOT match"),
+				nMismatchedChecksums);
 
-			if (g_option._ignore_missing && !bMatchedChecksums)
-				error(_T("%s: no file was verified\n"),
-				        zIn_FileContainsDigestInfo.c_str());
+			errs(1, !(g_option._ignore_missing && !bMatchedChecksums)).format(_T("%s: no file was verified"),
+				zIn_FileContainsDigestInfo.c_str());
 		}
 	}
 
@@ -832,7 +826,7 @@ int main(int argc, const TCHAR* argv[])
 	g_option.InitMain(argc, argv);
 	if (argc == 1)
 	{
-		error(_T("%s: require argument(s)\n"), g_option._program_name.c_str());
+		errs().format(_T("%s: require argument(s)"), g_option._program_name.c_str());
 		g_option.DisposeInvalidOption();
 	}
 	
@@ -914,24 +908,29 @@ int main(int argc, const TCHAR* argv[])
 		opt.to_next();
 	}
 
-        g_option.DisposeOptionError();
+	g_option.DisposeOptionError();
 
-	int status = EXIT_SUCCESS;
-	std::vector<str>::iterator iter;
-
-	for (iter = files.begin(); iter != files.end(); iter++)
+	struct RUN_T
 	{
-		if (g_option._do_check)
-		{
-			if (!DigestCheck(*iter))
-				status = EXIT_FAILURE;
-		}
-		else
-		{
-			if (!DigestFile(*iter))
-				status = EXIT_FAILURE;
-		}
-	}
+		int status;
+		RUN_T() : status(EXIT_SUCCESS) {}
 
-	return status;
+		void operator()(str& zFile)
+		{
+			if (g_option._do_check)
+			{
+				if (!DigestCheck(zFile))
+					status = EXIT_FAILURE;
+			}
+			else
+			{
+				if (!DigestFile(zFile))
+					status = EXIT_FAILURE;
+			}
+		}
+	} _run;
+	std::for_each(files.begin(), files.end(), _run);
+	outs.print();
+	errs.print();
+	return _run.status;
 }
