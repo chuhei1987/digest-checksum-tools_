@@ -472,8 +472,7 @@ bool ParseLine(TCHAR* cLine, str& zOut_DigestInLine, str& zOut_FileNameInLine, b
 	if (cLine[0] == 'M' || cLine[0] == 'S')//BSD tag style: --tag
 	{
 		//BSD tag style:
-		//MD5 (*file) = 05b04f4921652d0bc7dbf0835ba89fe1
-		//MD5 ( file) = 05b04f4921652d0bc7dbf0835ba89fe1
+		//MD5 (file) = 05b04f4921652d0bc7dbf0835ba89fe1
 		if (cLine[0] == 'M' && cLine[1] == 'D' && cLine[2] == '5')
 		{
 			alg_id = MD5; //32 hex digits
