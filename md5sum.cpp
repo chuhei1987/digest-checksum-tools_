@@ -118,8 +118,7 @@ public:
 			}
 			i--;
 		}
-
-		std::transform(_program_name.begin(), _program_name.end(), _program_name.begin(), ::tolower);//to lower case
+		_program_name.to_lower();//to lower case
 		
 		if (_program_name == _T("md5sum"))
 		{
